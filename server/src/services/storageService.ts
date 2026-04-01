@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { ethers } from "ethers";
 import { Indexer, MemData } from "@0gfoundation/0g-ts-sdk";
@@ -50,13 +51,24 @@ async function buildFile(payload: string) {
 }
 
 async function writeFallbackArtifact(rootHash: string, payload: string) {
-  const artifactsDir = path.resolve(process.cwd(), ".demo-artifacts");
-  await mkdir(artifactsDir, { recursive: true });
+  const artifactRoot = process.env.VERCEL ? os.tmpdir() : process.cwd();
+  const artifactsDir = path.resolve(artifactRoot, ".demo-artifacts");
 
-  const artifactPath = path.join(artifactsDir, `${rootHash}.json`);
-  await writeFile(artifactPath, payload, "utf8");
+  try {
+    await mkdir(artifactsDir, { recursive: true });
 
-  return artifactPath;
+    const artifactPath = path.join(artifactsDir, `${rootHash}.json`);
+    await writeFile(artifactPath, payload, "utf8");
+
+    return artifactPath;
+  } catch (error) {
+    console.warn(
+      "[storageService] fallback artifact write skipped:",
+      error instanceof Error ? error.message : error
+    );
+
+    return undefined;
+  }
 }
 
 function buildRetryOpts(): RetryOpts | undefined {
