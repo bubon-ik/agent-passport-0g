@@ -1,13 +1,7 @@
-import { randomUUID } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { ethers } from "ethers";
-import {
-  Indexer,
-  MemData,
-  defaultUploadOption,
-  type UploadOption
-} from "@0glabs/0g-ts-sdk";
+import { Indexer, MemData } from "@0gfoundation/0g-ts-sdk";
 import { config, storageConfigured } from "../config.js";
 import { AppError } from "../errors.js";
 import type { AgentPassport } from "../../../shared/passport.js";
@@ -17,7 +11,12 @@ type SaveResult = {
   txHash?: string;
   savedAt: string;
   mode: "live" | "mock";
-  artifactPath?: string;
+};
+
+type RetryOpts = {
+  Retries: number;
+  Interval: number;
+  MaxGasPrice: number;
 };
 
 function buildPayload(passport: AgentPassport, savedAt: string) {
@@ -60,6 +59,32 @@ async function writeFallbackArtifact(rootHash: string, payload: string) {
   return artifactPath;
 }
 
+function buildRetryOpts(): RetryOpts | undefined {
+  if (!config.maxRetries) {
+    return undefined;
+  }
+
+  return {
+    Retries: config.maxRetries,
+    Interval: 5,
+    MaxGasPrice: config.maxGasPrice ? Number(config.maxGasPrice) : 0
+  };
+}
+
+function buildTxOpts() {
+  const txOpts: { gasPrice?: bigint; gasLimit?: bigint } = {};
+
+  if (config.gasPrice) {
+    txOpts.gasPrice = config.gasPrice;
+  }
+
+  if (config.gasLimit) {
+    txOpts.gasLimit = config.gasLimit;
+  }
+
+  return Object.keys(txOpts).length > 0 ? txOpts : undefined;
+}
+
 export async function savePassport(passport: AgentPassport): Promise<SaveResult> {
   const savedAt = new Date().toISOString();
   const payload = buildPayload(passport, savedAt);
@@ -70,13 +95,12 @@ export async function savePassport(passport: AgentPassport): Promise<SaveResult>
       throw new AppError("0G Storage is not configured.", 503);
     }
 
-    const artifactPath = await writeFallbackArtifact(treeRoot, payload);
+    await writeFallbackArtifact(treeRoot, payload);
 
     return {
       rootHash: treeRoot,
       savedAt,
-      mode: "mock",
-      artifactPath
+      mode: "mock"
     };
   }
 
@@ -84,35 +108,34 @@ export async function savePassport(passport: AgentPassport): Promise<SaveResult>
     const provider = new ethers.JsonRpcProvider(config.storageRpc);
     const wallet = new ethers.Wallet(config.privateKey, provider);
     const indexer = new Indexer(config.storageIndexer);
-    const uploadOptions: UploadOption = {
-      ...defaultUploadOption,
-      taskSize: 10,
-      expectedReplica: 1,
-      finalityRequired: true,
-      tags: "0x",
-      skipTx: false,
-      fee: BigInt(0)
-    };
-
-    const [nodes, nodesError] = await indexer.selectNodes(uploadOptions.expectedReplica);
-    if (nodesError || nodes.length === 0) {
-      throw nodesError ?? new Error("Failed to select storage nodes.");
-    }
-
     const signer = wallet as unknown as Parameters<Indexer["upload"]>[2];
-    const [tx, uploadError] = await indexer.upload(file, config.storageRpc, signer, uploadOptions);
+    const [tx, uploadError] = await indexer.upload(
+      file,
+      config.storageRpc,
+      signer,
+      undefined,
+      buildRetryOpts(),
+      buildTxOpts()
+    );
 
     if (uploadError || !tx) {
       throw uploadError ?? new Error("Missing upload transaction payload.");
     }
 
+    const liveResult =
+      "rootHash" in tx
+        ? { rootHash: tx.rootHash, txHash: tx.txHash }
+        : { rootHash: tx.rootHashes[0], txHash: tx.txHashes[0] };
+
     return {
-      rootHash: treeRoot,
-      txHash: tx.txHash,
+      rootHash: liveResult.rootHash || treeRoot,
+      txHash: liveResult.txHash,
       savedAt,
       mode: "live"
     };
   } catch (error) {
+    console.error("[storageService] upload failed:", error instanceof Error ? error.message : error);
+
     if (!config.allowMock) {
       throw new AppError(
         error instanceof Error ? `Storage upload failed: ${error.message}` : "Storage upload failed.",
@@ -120,13 +143,12 @@ export async function savePassport(passport: AgentPassport): Promise<SaveResult>
       );
     }
 
-    const artifactPath = await writeFallbackArtifact(treeRoot, payload);
+    await writeFallbackArtifact(treeRoot, payload);
 
     return {
       rootHash: treeRoot,
       savedAt,
-      mode: "mock",
-      artifactPath
+      mode: "mock"
     };
   }
 }

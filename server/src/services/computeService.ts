@@ -6,6 +6,10 @@ import { normalizePassport } from "../normalizePassport.js";
 import { buildPassportPrompt } from "../passportPrompt.js";
 import type { AgentPassport, GeneratePassportInput } from "../../../shared/passport.js";
 
+const client = computeConfigured
+  ? new OpenAI({ apiKey: config.computeApiKey, baseURL: config.computeBaseUrl })
+  : null;
+
 function extractJson(text: string) {
   const trimmed = text.trim();
   const firstBrace = trimmed.indexOf("{");
@@ -36,12 +40,7 @@ export async function generatePassport(input: GeneratePassportInput): Promise<{
   }
 
   try {
-    const client = new OpenAI({
-      apiKey: config.computeApiKey,
-      baseURL: config.computeBaseUrl
-    });
-
-    const completion = await client.chat.completions.create({
+    const completion = await client!.chat.completions.create({
       model: config.computeModel,
       temperature: 0.4,
       response_format: { type: "json_object" },

@@ -5,22 +5,25 @@ import {
   agentPassportSchema,
   generatePassportInputSchema
 } from "../../shared/passport.js";
-import { computeConfigured, config, storageConfigured } from "./config.js";
+import { config } from "./config.js";
 import { AppError } from "./errors.js";
+import { checkHealth } from "./services/healthService.js";
 import { generatePassport } from "./services/computeService.js";
 import { savePassport } from "./services/storageService.js";
 
 const app = express();
 
-app.use(cors());
+app.use(cors({ origin: config.corsOrigin }));
+
 app.use(express.json({ limit: "1mb" }));
 
-app.get("/api/health", (_req, res) => {
-  res.json({
-    ok: true,
-    computeConfigured,
-    storageConfigured
-  });
+app.get("/api/health", async (_req, res, next) => {
+  try {
+    const health = await checkHealth();
+    res.json(health);
+  } catch (error) {
+    next(error);
+  }
 });
 
 app.post("/api/passport/generate", async (req, res, next) => {

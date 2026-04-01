@@ -32,48 +32,19 @@ function enumOrFallback<T extends readonly string[]>(
 }
 
 export function normalizePassport(candidate: unknown, fallback: AgentPassport): AgentPassport {
+  const raw = (candidate ?? {}) as Partial<AgentPassport>;
+
   const normalized: AgentPassport = {
-    name: clampString((candidate as AgentPassport | undefined)?.name, fallback.name, 48),
-    oneLiner: clampString((candidate as AgentPassport | undefined)?.oneLiner, fallback.oneLiner, 100),
-    mission: clampString((candidate as AgentPassport | undefined)?.mission, fallback.mission, 180),
-    capabilities: normalizeArray(
-      (candidate as AgentPassport | undefined)?.capabilities,
-      3,
-      fallback.capabilities,
-      64
-    ),
-    bestUseCases: normalizeArray(
-      (candidate as AgentPassport | undefined)?.bestUseCases,
-      3,
-      fallback.bestUseCases,
-      72
-    ),
-    riskNotes: normalizeArray(
-      (candidate as AgentPassport | undefined)?.riskNotes,
-      2,
-      fallback.riskNotes,
-      72
-    ),
-    trustProfile: enumOrFallback(
-      (candidate as AgentPassport | undefined)?.trustProfile,
-      trustProfileOptions,
-      fallback.trustProfile
-    ),
-    operatorType: enumOrFallback(
-      (candidate as AgentPassport | undefined)?.operatorType,
-      operatorTypeOptions,
-      fallback.operatorType
-    ),
-    signatureStyle: clampString(
-      (candidate as AgentPassport | undefined)?.signatureStyle,
-      fallback.signatureStyle,
-      40
-    ),
-    badgeColor: enumOrFallback(
-      (candidate as AgentPassport | undefined)?.badgeColor,
-      badgeColorOptions,
-      fallback.badgeColor
-    )
+    name: clampString(raw.name, fallback.name, 48),
+    oneLiner: clampString(raw.oneLiner, fallback.oneLiner, 100),
+    mission: clampString(raw.mission, fallback.mission, 180),
+    capabilities: normalizeArray(raw.capabilities, 3, fallback.capabilities, 64),
+    bestUseCases: normalizeArray(raw.bestUseCases, 3, fallback.bestUseCases, 72),
+    riskNotes: normalizeArray(raw.riskNotes, 2, fallback.riskNotes, 72),
+    trustProfile: enumOrFallback(raw.trustProfile, trustProfileOptions, fallback.trustProfile),
+    operatorType: enumOrFallback(raw.operatorType, operatorTypeOptions, fallback.operatorType),
+    signatureStyle: clampString(raw.signatureStyle, fallback.signatureStyle, 40),
+    badgeColor: enumOrFallback(raw.badgeColor, badgeColorOptions, fallback.badgeColor)
   };
 
   return agentPassportSchema.parse(normalized);

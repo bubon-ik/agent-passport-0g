@@ -1,6 +1,9 @@
-import { FormEvent, useEffect, useState } from "react";
-import { generatePassport, getHealth, savePassport } from "./api";
-import type { AgentPassport, DomainOption, HealthResponse } from "./types";
+import { useEffect, useState } from "react";
+import { getHealth } from "./api";
+import { usePassportGenerator } from "./hooks/usePassportGenerator";
+import { usePassportStorage } from "./hooks/usePassportStorage";
+import type { AgentPassport } from "../../shared/passport";
+import type { DomainOption, HealthResponse } from "./types";
 
 const domains: DomainOption[] = ["research", "trading", "support", "content", "security"];
 
@@ -54,8 +57,8 @@ function DetailList({ title, items }: { title: string; items: string[] }) {
     <section className="detail-block">
       <h3>{title}</h3>
       <ul>
-        {items.map((item) => (
-          <li key={item}>{item}</li>
+        {items.map((item, index) => (
+          <li key={index}>{item}</li>
         ))}
       </ul>
     </section>
@@ -64,81 +67,21 @@ function DetailList({ title, items }: { title: string; items: string[] }) {
 
 export function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [domain, setDomain] = useState<DomainOption | "">("");
-  const [passport, setPassport] = useState<AgentPassport | null>(null);
-  const [generateMode, setGenerateMode] = useState<"live" | "mock" | null>(null);
-  const [saveMode, setSaveMode] = useState<"live" | "mock" | null>(null);
-  const [rootHash, setRootHash] = useState("");
-  const [savedAt, setSavedAt] = useState("");
-  const [artifactPath, setArtifactPath] = useState("");
-  const [error, setError] = useState("");
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
+
+  const generator = usePassportGenerator();
+  const storage = usePassportStorage();
 
   useEffect(() => {
     getHealth().then(setHealth).catch(() => null);
   }, []);
 
-  async function onSubmit(event: FormEvent) {
-    event.preventDefault();
-    setError("");
-    setRootHash("");
-    setSavedAt("");
-    setSaveMode(null);
-    setArtifactPath("");
-    setCopied(false);
-
-    if (!name.trim() || !description.trim()) {
-      setError("Agent name and description are required.");
-      return;
+  useEffect(() => {
+    if (generator.passport) {
+      storage.reset();
     }
+  }, [generator.passport]);
 
-    setIsGenerating(true);
-
-    try {
-      const result = await generatePassport({
-        name: name.trim(),
-        description: description.trim(),
-        domain: domain || undefined
-      });
-
-      setPassport(result.passport);
-      setGenerateMode(result.mode);
-    } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Generation failed.");
-    } finally {
-      setIsGenerating(false);
-    }
-  }
-
-  async function onSave() {
-    if (!passport) return;
-
-    setIsSaving(true);
-    setError("");
-
-    try {
-      const result = await savePassport(passport);
-      setRootHash(result.rootHash);
-      setSavedAt(result.savedAt);
-      setSaveMode(result.mode);
-      setArtifactPath(result.artifactPath || "");
-    } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : "Storage failed.");
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function copyHash() {
-    if (!rootHash) return;
-    await navigator.clipboard.writeText(rootHash);
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1500);
-  }
+  const combinedError = generator.error || storage.saveError;
 
   return (
     <main className="shell">
@@ -152,10 +95,10 @@ export function App() {
           </p>
           <div className="status-row">
             <span className={`status-pill ${health?.computeConfigured ? "ok" : "warn"}`}>
-              Compute {health?.computeConfigured ? "configured" : "demo mode"}
+              Compute {health?.computeConfigured ? "endpoint set" : "demo mode"}
             </span>
             <span className={`status-pill ${health?.storageConfigured ? "ok" : "warn"}`}>
-              Storage {health?.storageConfigured ? "configured" : "demo mode"}
+              Storage {health?.storageConfigured ? "wallet set" : "demo mode"}
             </span>
           </div>
         </div>
@@ -167,7 +110,7 @@ export function App() {
       </section>
 
       <section className="workspace">
-        <form className="panel form-panel" onSubmit={onSubmit}>
+        <form className="panel form-panel" onSubmit={generator.onSubmit}>
           <div className="panel-header">
             <p>Passport Generator</p>
             <span>Build an agent identity primitive</span>
@@ -176,8 +119,8 @@ export function App() {
           <label>
             Agent name
             <input
-              value={name}
-              onChange={(event) => setName(event.target.value)}
+              value={generator.name}
+              onChange={(e) => generator.setName(e.target.value)}
               placeholder="Negravis Sentinel"
               maxLength={48}
             />
@@ -186,8 +129,8 @@ export function App() {
           <label>
             Agent description
             <textarea
-              value={description}
-              onChange={(event) => setDescription(event.target.value)}
+              value={generator.description}
+              onChange={(e) => generator.setDescription(e.target.value)}
               placeholder="Describe what the agent does, who operates it, and where it should be trusted."
               rows={7}
               maxLength={700}
@@ -196,7 +139,10 @@ export function App() {
 
           <label>
             Primary domain
-            <select value={domain} onChange={(event) => setDomain(event.target.value as DomainOption | "")}>
+            <select
+              value={generator.domain}
+              onChange={(e) => generator.setDomain(e.target.value as DomainOption | "")}
+            >
               <option value="">Unspecified</option>
               {domains.map((option) => (
                 <option key={option} value={option}>
@@ -206,14 +152,14 @@ export function App() {
             </select>
           </label>
 
-          <button className="primary-button" type="submit" disabled={isGenerating}>
-            {isGenerating ? "Generating passport..." : "Generate Passport"}
+          <button className="primary-button" type="submit" disabled={generator.isGenerating}>
+            {generator.isGenerating ? "Generating passport..." : "Generate Passport"}
           </button>
 
-          {error ? <p className="error-text">{error}</p> : null}
-          {generateMode ? (
+          {combinedError ? <p className="error-text">{combinedError}</p> : null}
+          {generator.generateMode ? (
             <p className="hint-text">
-              Generated via {generateMode === "live" ? "0G Compute" : "demo fallback"}.
+              Generated via {generator.generateMode === "live" ? "0G Compute" : "demo mode"}.
             </p>
           ) : (
             <p className="hint-text">Keep the brief concrete. The sharper the brief, the sharper the passport.</p>
@@ -221,14 +167,14 @@ export function App() {
         </form>
 
         <div className="panel output-panel">
-          {passport ? (
+          {generator.passport ? (
             <>
-              <PassportCard passport={passport} savedRootHash={rootHash} />
+              <PassportCard passport={generator.passport} savedRootHash={storage.rootHash} />
 
               <div className="detail-grid">
-                <DetailList title="Capabilities" items={passport.capabilities} />
-                <DetailList title="Best Use Cases" items={passport.bestUseCases} />
-                <DetailList title="Risk Notes" items={passport.riskNotes} />
+                <DetailList title="Capabilities" items={generator.passport.capabilities} />
+                <DetailList title="Best Use Cases" items={generator.passport.bestUseCases} />
+                <DetailList title="Risk Notes" items={generator.passport.riskNotes} />
               </div>
 
               <div className="storage-panel">
@@ -240,27 +186,31 @@ export function App() {
                 </div>
 
                 <div className="storage-actions">
-                  <button className="secondary-button" onClick={onSave} disabled={isSaving} type="button">
-                    {isSaving ? "Storing..." : "Save to 0G"}
+                  <button
+                    className="secondary-button"
+                    onClick={() => generator.passport && storage.onSave(generator.passport)}
+                    disabled={storage.isSaving}
+                    type="button"
+                  >
+                    {storage.isSaving ? "Storing..." : "Save to 0G"}
                   </button>
                   <button
                     className="ghost-button"
-                    onClick={copyHash}
-                    disabled={!rootHash}
+                    onClick={storage.copyHash}
+                    disabled={!storage.rootHash}
                     type="button"
                   >
-                    {copied ? "Copied" : "Copy Root Hash"}
+                    {storage.copied ? "Copied" : "Copy Root Hash"}
                   </button>
                 </div>
 
-                {rootHash ? (
+                {storage.rootHash ? (
                   <div className="storage-result">
                     <p className="storage-badge">
-                      Stored on {saveMode === "live" ? "0G" : "demo fallback"}
+                      {storage.saveMode === "live" ? "Stored on 0G" : "Stored in demo-safe mode"}
                     </p>
-                    <p className="mono">{rootHash}</p>
-                    <p className="storage-meta">Saved at {new Date(savedAt).toLocaleString()}</p>
-                    {artifactPath ? <p className="storage-meta">Fallback artifact: {artifactPath}</p> : null}
+                    <p className="mono">{storage.rootHash}</p>
+                    <p className="storage-meta">Saved at {new Date(storage.savedAt).toLocaleString()}</p>
                   </div>
                 ) : null}
               </div>

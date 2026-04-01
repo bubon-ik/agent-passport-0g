@@ -1,23 +1,11 @@
-export type TrustProfile = "experimental" | "practical" | "high-autonomy";
-export type OperatorType = "solo" | "team" | "protocol";
-export type BadgeColor = "copper" | "lime" | "cyan" | "amber" | "rose";
-export type DomainOption = "research" | "trading" | "support" | "content" | "security";
+// Re-export from shared to avoid duplication with server types.
+// AgentPassport and its field types are the source of truth in shared/passport.ts.
+export type { AgentPassport, DomainOption } from "../../shared/passport";
 
-export type AgentPassport = {
-  name: string;
-  oneLiner: string;
-  mission: string;
-  capabilities: string[];
-  bestUseCases: string[];
-  riskNotes: string[];
-  trustProfile: TrustProfile;
-  operatorType: OperatorType;
-  signatureStyle: string;
-  badgeColor: BadgeColor;
-};
-
+// Client-only types (not in shared schema)
 export type HealthResponse = {
   ok: boolean;
   computeConfigured: boolean;
   storageConfigured: boolean;
+  storageReachable: boolean;
 };

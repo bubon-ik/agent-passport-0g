@@ -1,4 +1,5 @@
-import type { AgentPassport, DomainOption, HealthResponse } from "./types";
+import type { AgentPassport, DomainOption } from "../../shared/passport";
+import type { HealthResponse } from "./types";
 
 async function parseJson<T>(response: Response): Promise<T> {
   const payload = await response.json();
@@ -45,6 +46,5 @@ export async function savePassport(passport: AgentPassport) {
     txHash?: string;
     savedAt: string;
     mode: "live" | "mock";
-    artifactPath?: string;
   }>(response);
 }

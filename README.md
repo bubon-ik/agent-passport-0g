@@ -7,7 +7,7 @@ Agent Passport is a one-page MVP for 0G vibe coding: describe an AI agent, gener
 - Vite + React + TypeScript
 - Express + TypeScript
 - 0G Compute via OpenAI-compatible endpoint
-- 0G Storage via `@0glabs/0g-ts-sdk`
+- 0G Storage via `@0gfoundation/0g-ts-sdk`
 
 ## Scripts
 
@@ -22,3 +22,20 @@ Agent Passport is a one-page MVP for 0G vibe coding: describe an AI agent, gener
 Copy `.env.example` to `.env`.
 
 `ALLOW_MOCK_MODE=true` keeps the demo usable even before 0G credentials are wired in.
+
+For storage, the project now follows the official 0G storage starter-kit shape:
+
+```env
+NETWORK=testnet
+STORAGE_MODE=turbo
+PRIVATE_KEY=your_private_key
+```
+
+Optional gas and retry knobs are also supported:
+
+```env
+GAS_PRICE=...
+GAS_LIMIT=...
+MAX_RETRIES=3
+MAX_GAS_PRICE=...
+```
