@@ -8,5 +8,5 @@
     "outDir": "../dist/server",
     "noEmit": false
   },
-  "include": ["src", "../shared"]
+  "include": ["src", "../shared", "../api"]
 }

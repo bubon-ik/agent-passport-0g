@@ -39,3 +39,15 @@ GAS_LIMIT=...
 MAX_RETRIES=3
 MAX_GAS_PRICE=...
 ```
+
+## Vercel
+
+The repository is prepared for Vercel Git deployment:
+
+- static frontend output: `dist/client`
+- serverless API routes:
+  - `/api/health`
+  - `/api/passport/generate`
+  - `/api/passport/save`
+
+Vercel reads this from [vercel.json](/Users/mp/Documents/OG%20vibecode/vercel.json), so after importing the GitHub repo you only need to provide the environment variables in the Vercel project settings.
